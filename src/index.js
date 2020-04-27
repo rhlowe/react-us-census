@@ -3,25 +3,42 @@ import ReactDOM from "react-dom";
 import { objectifyArray } from "./utils/array2object";
 import { fetchData } from "./utils/fetch";
 import { sortObjects } from "./utils/sort";
-import { formatNumber, formatFloat } from "./utils/math";
+import { States } from "./states";
+import { Counties } from "./counties";
+import "./index.css";
 
 function App() {
   const [activeState, setActiveState] = useState("*");
   const [loadingState, setLoadingState] = useState('loading');
   const [stateData, setStateData] = useState([]);
+  const [countyData, setCountyData] = useState([]);
 
   useEffect(() => {
+    setLoadingState('loading');
+
     console.debug("activeState", activeState);
-    if (activeState === "*") {
+    if (activeState === "*" && stateData.length === 0) {
       fetchData(
-        `https://api.census.gov/data/2019/pep/population?get=NAME,POP,DENSITY&for=state:${activeState}&DATE_CODE=1`
+        `https://api.census.gov/data/2019/pep/population?get=NAME,POP,DENSITY&for=state:*&DATE_CODE=1`
       ).then((data) => {
         const formattedData = sortObjects(objectifyArray(data), 'name');
         setStateData(formattedData);
         setLoadingState('settled');
       });
+    } else if (activeState === "*" && stateData.length > 0) {
+      setLoadingState('settled');
     }
-  }, [activeState]);
+
+    if (activeState !== '*') {
+      fetchData(
+        `https://api.census.gov/data/2019/pep/population?get=NAME,POP,DENSITY&for=county:*&in=state:${activeState}&DATE_CODE=1`
+      ).then((data) => {
+        const formattedData = sortObjects(objectifyArray(data), 'name');
+        setCountyData(formattedData);
+        setLoadingState('settled');
+      });
+    }
+  }, [activeState, stateData.length]);
 
   const updateActiveState = (e, stateID) => {
     e.preventDefault();
@@ -31,52 +48,33 @@ function App() {
 
   return (
     <>
-      <h1>Hi, {activeState}</h1>
-      {loadingState === 'loading' &&
-        <p>Loading Data...</p>
-      }
+      <header id="site-header" className="bg-light">React Census App</header>
 
-      {loadingState === 'settled' &&
-        activeState === '*' &&
-        <>
-          {stateData.map(state =>
-            <article key={state.state}>
-              <header>
-                <h2>{state.name}</h2>
-              </header>
+      <main>
+        {loadingState === 'loading' &&
+          <p>Loading Data...</p>
+        }
 
-              <ul>
-                <li>Population: {formatNumber(state.pop)}</li>
-                <li>Population Density: {formatFloat(state.density)}</li>
-              </ul>
+        {loadingState === 'settled' &&
+          activeState === '*' &&
+          <States
+            states={stateData}
+            updateActiveState={updateActiveState}
+          />
+        }
 
-              <form onSubmit={e => updateActiveState(e, state.state)}>
-                <button>View county data for {state.name}</button>
-              </form>
-            </article>
-          )}
-        </>
-      }
-
-{loadingState === 'settled' &&
-        activeState !== '*' &&
-        <>
-          <article>
-            <header>
-              <h2>OH!</h2>
-              <form onSubmit={e => updateActiveState(e, "*")}>
-                <button>◀ Return to all state data</button>
-              </form>
-            </header>
-          </article>
-        </>
-      }
-
-      {loadingState === 'settled' &&
-        <pre>{JSON.stringify(stateData, null, 2)}</pre>
-      }
+        {loadingState === 'settled' &&
+          activeState !== '*' &&
+          <Counties
+            activeState={activeState}
+            counties={countyData}
+            states={stateData}
+            updateActiveState={updateActiveState}
+            />
+        }
+      </main>
     </>
-  );
+  )
 }
 
 ReactDOM.render(<App />, document.querySelector("#root"));
